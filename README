@@ -1,61 +1,199 @@
-A fork of xv6 with support for devcontainer.
+# xv6 — System Calls & Processes
 
-# Installation
-1. Clone the repository.
-2. Install devcontainer dependencies https://code.visualstudio.com/docs/remote/containers#_installation.
-    * Linux users might need to also do https://docs.docker.com/engine/install/linux-postinstall/.
-3. Open vscode and select File -> open folder.
-4. Select the cloned repository folder.
-5. Press "Reopen in Container".
-6. ???
-7. Profit.
+Implementation of operating-system functionality in **xv6-riscv**, focusing on system calls, process management, memory usage, process termination, and distributing work among multiple processes.
 
-xv6 is a re-implementation of Dennis Ritchie's and Ken Thompson's Unix
-Version 6 (v6).  xv6 loosely follows the structure and style of v6,
-but is implemented for a modern RISC-V multiprocessor using ANSI C.
+This project was developed as part of the **Operating Systems** course at Ben-Gurion University of the Negev. The assignment uses xv6, a small UNIX-like teaching operating system designed to provide hands-on experience with operating-system concepts and kernel development.
 
-ACKNOWLEDGMENTS
+## Overview
 
-xv6 is inspired by John Lions's Commentary on UNIX 6th Edition (Peer
-to Peer Communications; ISBN: 1-57398-013-7; 1st edition (June 14,
-2000)).  See also https://pdos.csail.mit.edu/6.1810/, which provides
-pointers to on-line resources for v6.
+The project extends xv6 with new userspace programs and kernel functionality through four main tasks:
 
-The following people have made contributions: Russ Cox (context switching,
-locking), Cliff Frey (MP), Xiao Yu (MP), Nickolai Zeldovich, and Austin
-Clements.
+* **Hello World** — creating and integrating a userspace program.
+* **Memory Size System Call** — implementing the `memsize` system call.
+* **Exit Messages** — extending process termination and `wait` to support exit messages.
+* **Process Distribution** — implementing `forkn` and `waitall` to create and synchronize multiple child processes.
 
-We are also grateful for the bug reports and patches contributed by
-Takahiro Aoyagi, Silas Boyd-Wickizer, Anton Burtsev, carlclone, Ian
-Chen, Dan Cross, Cody Cutler, Mike CAT, Tej Chajed, Asami Doi,
-eyalz800, Nelson Elhage, Saar Ettinger, Alice Ferrazzi, Nathaniel
-Filardo, flespark, Peter Froehlich, Yakir Goaron, Shivam Handa, Matt
-Harvey, Bryan Henry, jaichenhengjie, Jim Huang, Matúš Jókay, John
-Jolly, Alexander Kapshuk, Anders Kaseorg, kehao95, Wolfgang Keller,
-Jungwoo Kim, Jonathan Kimmitt, Eddie Kohler, Vadim Kolontsov, Austin
-Liew, l0stman, Pavan Maddamsetti, Imbar Marinescu, Yandong Mao, Matan
-Shabtay, Hitoshi Mitake, Carmi Merimovich, Mark Morrissey, mtasm, Joel
-Nider, Hayato Ohhashi, OptimisticSide, Harry Porter, Greg Price, Jude
-Rich, segfault, Ayan Shafqat, Eldar Sehayek, Yongming Shen, Fumiya
-Shigemitsu, Cam Tenny, tyfkda, Warren Toomey, Stephen Tu, Rafael Ubal,
-Amane Uehara, Pablo Ventura, Xi Wang, WaheedHafez, Keiichi Watanabe,
-Nicolas Wolovick, wxdao, Grant Wu, Jindong Zhang, Icenowy Zheng,
-ZhUyU1997, and Zou Chang Wei.
+## Key Implementations
 
+### `memsize` System Call
 
-The code in the files that constitute xv6 is
-Copyright 2006-2022 Frans Kaashoek, Robert Morris, and Russ Cox.
+Implemented a new system call:
 
-ERROR REPORTS
+```c
+int memsize(void);
+```
 
-Please send errors and suggestions to Frans Kaashoek and Robert Morris
-(kaashoek,rtm@mit.edu).  The main purpose of xv6 is as a teaching
-operating system for MIT's 6.1810, so we are more interested in
-simplifications and clarifications than new features.
+The system call returns the memory size of the currently running process.
 
-BUILDING AND RUNNING XV6
+The implementation required changes to the system-call interface and kernel, including:
 
-You will need a RISC-V "newlib" tool chain from
-https://github.com/riscv/riscv-gnu-toolchain, and qemu compiled for
-riscv64-softmmu.  Once they are installed, and in your shell
-search path, you can run "make qemu".
+* `syscall.h`
+* `syscall.c`
+* `sysproc.c`
+* `usys.pl`
+* `user.h`
+
+A userspace test program, `memsize_test.c`, was implemented to measure memory usage before allocation, after allocating 20 KB, and after freeing the allocated memory.
+
+### Process Exit Messages
+
+Extended the process termination mechanism to store and retrieve an exit message.
+
+The implementation includes:
+
+* Adding `exit_msg` to the Process Control Block (PCB).
+* Extending `exit` to receive an exit message.
+* Extending `wait` to return the child's exit message.
+* Using `argstr` to transfer the message from userspace to kernelspace.
+* Using `copyout` to transfer the message back to userspace.
+* Creating the `goodbye.c` userspace program.
+* Updating the shell to display the exit message when a child process terminates.
+
+### Multiple-Process Creation with `forkn`
+
+Implemented:
+
+```c
+int forkn(int n, int* pids);
+```
+
+The system call creates multiple child processes and returns their PIDs to the parent.
+
+The implementation also handles partial failures: if creating one of the requested processes fails, already-created child processes must be cleaned up and the operation returns `-1`.
+
+### Waiting for Multiple Processes with `waitall`
+
+Implemented:
+
+```c
+int waitall(int* n, int* statuses);
+```
+
+`waitall` waits for all child processes to finish and returns:
+
+* The number of completed child processes.
+* The exit status of each child process.
+* An error indication when the operation fails.
+
+The implementation uses userspace/kernelspace data transfer through `copyout` and ensures that the call does not return while child processes are still operating.
+
+## Distributed Array Computation
+
+The `bigarray.c` program demonstrates process-based parallelism.
+
+It:
+
+1. Initializes an array containing consecutive integers.
+2. Creates four child processes using `forkn`.
+3. Assigns each child a quarter of the array.
+4. Calculates a partial sum in each child.
+5. Communicates the results through child exit statuses.
+6. Uses `waitall` to wait for all children.
+7. Prints the final sum after all processes have completed.
+
+The expected final result is:
+
+```text
+2147450880
+```
+
+The assignment also requires testing the implementation with different numbers of child processes.
+
+## Operating-System Concepts
+
+This project provides practical experience with:
+
+* **System calls**
+* **Kernelspace and userspace**
+* **Process Control Blocks (PCB)**
+* **Process creation and termination**
+* **Parent-child process relationships**
+* **Process synchronization**
+* **Memory management**
+* **Inter-process communication**
+* **Process exit statuses**
+* **Kernel locking**
+* **Deadlock avoidance**
+* **RISC-V operating-system development**
+
+A key part of the process-management implementation is correctly acquiring and releasing process locks while avoiding holding multiple process locks simultaneously, which can lead to deadlocks.
+
+## Technologies
+
+* **C**
+* **xv6-riscv**
+* **RISC-V**
+* **QEMU**
+* **Docker**
+* **WSL 2**
+* **Visual Studio Code**
+* **Dev Containers**
+* **Git & GitHub**
+
+The recommended environment uses Docker with WSL and VS Code Dev Containers to compile and run xv6 in a controlled environment.
+
+## Running xv6
+
+After configuring the development environment, build and run xv6 with:
+
+```bash
+make qemu
+```
+
+After xv6 boots, the implemented userspace programs can be executed from the xv6 shell.
+
+Example:
+
+```bash
+helloworld
+```
+
+```bash
+memsize_test
+```
+
+```bash
+goodbye
+```
+
+```bash
+bigarray
+```
+
+To exit QEMU:
+
+```text
+Ctrl-A
+X
+```
+
+## Project Structure
+
+A simplified structure of the relevant components:
+
+```text
+xv6-riscv/
+├── kernel/
+│   ├── proc.c
+│   ├── syscall.c
+│   ├── sysproc.c
+│   └── ...
+│
+├── user/
+│   ├── helloworld.c
+│   ├── memsize_test.c
+│   ├── goodbye.c
+│   ├── bigarray.c
+│   └── ...
+│
+├── Makefile
+└── ...
+```
+
+## Course
+
+**Operating Systems**
+Ben-Gurion University of the Negev
+**Assignment 1 — Processes and Scheduling**
+
+Based on **xv6-riscv**.
